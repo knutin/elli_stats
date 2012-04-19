@@ -9,7 +9,7 @@
          terminate/2, code_change/3]).
 
 
--record(state, {subscribers = [], snapshot = []}).
+-record(state, {subscribers = []}).
 
 %%%===================================================================
 %%% API
@@ -35,7 +35,7 @@ add_subscriber(Ref) ->
 %%%===================================================================
 
 init([]) ->
-    erlang:send_after(1000, self(), push),
+    erlang:send_after(5000, self(), push),
     {ok, #state{}}.
 
 handle_call({add_subscriber, Ref}, _From, #state{subscribers = Sub} = State) ->
@@ -48,7 +48,7 @@ handle_cast({request, Id, Timings}, State) ->
     UserStart = proplists:get_value(user_start, Timings),
     UserEnd   = proplists:get_value(user_end, Timings),
     record_timing(Id, timer:now_diff(UserEnd, UserStart)),
-    incr_counter(Id, 1),
+    record_timing('_total', timer:now_diff(UserEnd, UserStart)),
 
     {noreply, State};
 
@@ -57,7 +57,7 @@ handle_cast({incr, Key, Amount}, State) ->
     {noreply, State}.
 
 
-handle_info(push, #state{subscribers = Subscribers, snapshot = Snapshot} = State) ->
+handle_info(push, #state{subscribers = Subscribers} = State) ->
     Stats = get_stats(),
     Formatted = iolist_to_binary(["data: ", jiffy:encode({Stats}), "\n\n"]),
 
@@ -73,8 +73,8 @@ handle_info(push, #state{subscribers = Subscribers, snapshot = Snapshot} = State
                                end
                        end, Subscribers),
 
-    erlang:send_after(1000, self(), push),
-    {noreply, State#state{snapshot = get(), subscribers = NewSubscribers}};
+    erlang:send_after(5000, self(), push),
+    {noreply, State#state{subscribers = NewSubscribers}};
 
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -88,16 +88,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-
-
-counter_diff(Snapshot) ->
-    Counters = lists:filter(fun ({{counter, _}, _}) -> true;
-                                (_) -> false
-                            end, get()),
-    lists:map(fun ({{counter, Key}, Val}) ->
-                      OldValue = proplists:get_value({counter, Key}, Snapshot, 0),
-                      {Key, Val - OldValue}
-              end, Counters).
 
 
 incr_counter(Key, Amount) ->
@@ -119,7 +109,7 @@ record_timing(Key, Time) ->
 
 get_stats() ->
     Timings = lists:filter(fun ({{timing, _} = Key, _}) ->
-                                   put(Key, []),
+                                   erase(Key),
                                    true;
                                (_) ->
                                    false
@@ -129,9 +119,17 @@ get_stats() ->
       fun ({{timing, Id}, Values}) ->
               Stats = bear:get_statistics(Values),
 
+              Percentiles = proplists:get_value(percentile, Stats),
+              P95 = proplists:get_value(95, Percentiles),
+              P99 = proplists:get_value(99, Percentiles),
+              P999 = proplists:get_value(999, Percentiles),
+
               {Id, {[
                      {mean, proplists:get_value(arithmetic_mean, Stats)},
                      {sd, proplists:get_value(standard_deviation, Stats)},
-                     {frequency, length(Values)}
+                     {observations, length(Values)},
+                     {p95, P95},
+                     {p99, P99},
+                     {p999, P999}
                     ]}}
       end, Timings).
