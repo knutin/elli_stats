@@ -39,20 +39,12 @@ handle(Req, Config) ->
     end.
 
 
-docroot(Config) ->
-    proplists:get_value(docroot, Config, []).
-
-
-valid_path(Path) ->
-    case binary:match(Path, <<"..">>) of
-        {_, _} -> false;
-        nomatch -> true
-    end.
-
 
 handle_event(request_complete, [Req, ResponseCode, _ResponseHeaders,
                                 ResponseBody, Timings], Config) ->
-    elli_stats_server:incr(request),
+    IdentityF = identity_fun(Config),
+    elli_stats_server:request(IdentityF(Req), Timings),
+
     %%elli_stats_server:incr({response_code, ResponseCode}),
     ok;
 
@@ -88,10 +80,42 @@ handle_event(elli_startup, [], _Config) ->
     end.
 
 
+%%
+%% INTERNAL HELPERS
+%%
+
+
+docroot(Config) ->
+    proplists:get_value(docroot, Config, []).
+
+identity_fun(Config) ->
+    proplists:get_value(identity_fun, Config, fun (Req) ->
+                                                      <<"undefined">>
+                                              end).
+
+valid_path(Path) ->
+    case binary:match(Path, <<"..">>) of
+        {_, _} -> false;
+        nomatch -> true
+    end.
+
+
+%%
+%% DEMO
+%%
 
 
 start_demo() ->
-    StatsConfig = [{docroot, "priv/docroot"}],
+    IdentityFun =
+        fun (Req) ->
+                case elli_request:path(Req) of
+                    [<<"favicon.ico">>] -> <<"favicon">>;
+                    [<<"hello">>] -> <<"hello">>;
+                    _ -> <<"unknown">>
+                end
+        end,
+    StatsConfig = [{docroot, "priv/docroot"},
+                   {identity_fun, IdentityFun}],
 
     Config = [
               {mods, [

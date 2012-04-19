@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <title>Bootstrap, from Twitter</title>
+    <title>Elli stats</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="">
     <meta name="author" content="">
@@ -47,12 +47,15 @@
 
     <div class="container">
 
-      <table class="table" style="width: 300px">
-        <tbody>
+      <table id="requests" class="table" style="width: 600px">
+        <thead>
           <tr>
-            <th>Requests per second</th>
-            <td id="rps">...</td>
+            <th>ID</th>
+            <th>Rate per second</th>
+            <th>Mean callback runtime</th>
           </tr>
+        </thead>
+        <tbody>
         </tbody>
       </table>
 
@@ -60,6 +63,7 @@
 
     <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
     <script src="stats/media/bootstrap/js/bootstrap.js"></script>
+    <script src="stats/media/underscore-min.js"></script>
     <script src="stats/media/dashboard.js"></script>
 
   </body>
