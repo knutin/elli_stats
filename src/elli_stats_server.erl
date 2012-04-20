@@ -35,7 +35,7 @@ add_subscriber(Ref) ->
 %%%===================================================================
 
 init([]) ->
-    erlang:send_after(5000, self(), push),
+    erlang:send_after(1000, self(), push),
     {ok, #state{}}.
 
 handle_call({add_subscriber, Ref}, _From, #state{subscribers = Sub} = State) ->
@@ -59,7 +59,7 @@ handle_cast({incr, Key, Amount}, State) ->
 
 handle_info(push, #state{subscribers = Subscribers} = State) ->
     Stats = get_stats(),
-    Formatted = iolist_to_binary(["data: ", jiffy:encode({Stats}), "\n\n"]),
+    Formatted = iolist_to_binary(["data: ", jiffy:encode(Stats), "\n\n"]),
 
     NewSubscribers = lists:flatmap(
                        fun (Sub) ->
@@ -73,7 +73,7 @@ handle_info(push, #state{subscribers = Subscribers} = State) ->
                                end
                        end, Subscribers),
 
-    erlang:send_after(5000, self(), push),
+    erlang:send_after(1000, self(), push),
     {noreply, State#state{subscribers = NewSubscribers}};
 
 handle_info(_Info, State) ->
@@ -115,21 +115,23 @@ get_stats() ->
                                    false
                            end, get()),
 
-    lists:map(
-      fun ({{timing, Id}, Values}) ->
-              Stats = bear:get_statistics(Values),
+    TimeStats =
+        lists:map(
+          fun ({{timing, Id}, Values}) ->
+                  Stats = bear:get_statistics(Values),
 
-              Percentiles = proplists:get_value(percentile, Stats),
-              P95 = proplists:get_value(95, Percentiles),
-              P99 = proplists:get_value(99, Percentiles),
-              P999 = proplists:get_value(999, Percentiles),
+                  Percentiles = proplists:get_value(percentile, Stats),
+                  P95 = proplists:get_value(95, Percentiles),
+                  P99 = proplists:get_value(99, Percentiles),
+                  P999 = proplists:get_value(999, Percentiles),
 
-              {Id, {[
-                     {mean, proplists:get_value(arithmetic_mean, Stats)},
-                     {sd, proplists:get_value(standard_deviation, Stats)},
-                     {observations, length(Values)},
-                     {p95, P95},
-                     {p99, P99},
-                     {p999, P999}
-                    ]}}
-      end, Timings).
+                  {Id, {[
+                         {mean, proplists:get_value(arithmetic_mean, Stats)},
+                         {sd, proplists:get_value(standard_deviation, Stats)},
+                         {observations, length(Values)},
+                         {p95, P95},
+                         {p99, P99},
+                         {p999, P999}
+                        ]}}
+          end, Timings),
+    {[{timings, {TimeStats}}]}.

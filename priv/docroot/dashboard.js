@@ -6,33 +6,31 @@ $(document).ready(function() {
 
     e.onmessage = function (event) {
         var data = $.parseJSON(event.data);
-        console.log(data);
+        //console.log(data);
         $("#requests tbody").html('');
 
-        _.each(data, function (v, k) {
-            if(k == "_total") { return }
+        _.each(data['timings'], function (v, k) {
+            if(k == "_total") { return };
             append_row(k, v);
         });
-
-        append_row("Total", data["_total"]);
+        append_row("Total", data["timings"]["_total"]);
 
     };
 });
 
 function append_row(k, v) {
-    var rps = v['observations'] / 5;
-    var mean = format_us(v['mean']) + " ms";
+    var rps = v['observations'];
 
-    var percentiles =
-        "95th %: " + format_us(v['p95']) + " ms, " +
-        "99th %: " + format_us(v['p99']) + " ms, " +
-        "99.9th %: " + format_us(v['p999']) + " ms";
+    var mean = format_us(v['mean']) + " ms";
+    var sd = format_us(v['sd']) + " ms";
+    var p99 = format_us(v['p99']) + " ms";
 
     $("#requests tbody:last").append("<tr>" +
                                      "<td>" + k + "</td>" +
                                      "<td>" + rps + "</td>" +
                                      "<td>" + mean + "</td>" +
-                                     "<td>" + percentiles + "</td>" +
+                                     "<td>" + sd + "</td>" +
+                                     "<td>" + p99 + "</td>" +
                                      "</tr>");
 }
 
