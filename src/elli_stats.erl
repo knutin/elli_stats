@@ -40,8 +40,8 @@ handle(Req, Config) ->
 
 
 
-handle_event(request_complete, [Req, ResponseCode, _ResponseHeaders,
-                                ResponseBody, Timings], Config) ->
+handle_event(request_complete, [Req, _ResponseCode, _ResponseHeaders,
+                                _ResponseBody, Timings], Config) ->
     IdentityF = identity_fun(Config),
     elli_stats_server:request(IdentityF(Req), Timings),
 
@@ -89,7 +89,7 @@ docroot(Config) ->
     proplists:get_value(docroot, Config, []).
 
 identity_fun(Config) ->
-    proplists:get_value(identity_fun, Config, fun (Req) ->
+    proplists:get_value(identity_fun, Config, fun (_Req) ->
                                                       <<"undefined">>
                                               end).
 
