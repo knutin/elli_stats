@@ -20,7 +20,8 @@ handle(Req, Config) ->
             file:read_file(filename:join([docroot(Config), "index.html"]));
 
         [<<"elli">>, <<"stats">>, <<"stream">>] ->
-            ok = elli_stats_server:add_subscriber(elli_request:chunk_ref(Req)),
+            ok = elli_stats_server:add_subscriber(name(Config),
+                                                  elli_request:chunk_ref(Req)),
 
             {chunk, [{<<"Content-Type">>, <<"text/event-stream">>}]};
 
@@ -43,41 +44,29 @@ handle(Req, Config) ->
 handle_event(request_complete, [Req, _ResponseCode, _ResponseHeaders,
                                 _ResponseBody, Timings], Config) ->
     IdentityF = identity_fun(Config),
-    elli_stats_server:request(IdentityF(Req), Timings),
+    elli_stats_server:request(name(Config), IdentityF(Req), Timings),
 
     %%elli_stats_server:incr({response_code, ResponseCode}),
     ok;
 
-handle_event(request_throw, _, _Config) ->
-    elli_stats_server:incr(request_exception),
-    ok;
-handle_event(request_exit, _, _Config) ->
-    elli_stats_server:incr(request_exit),
-    ok;
 
-handle_event(request_error, _, _Config) ->
-    elli_stats_server:incr(request_error),
-    ok;
-
-handle_event(request_parse_error, [_Data], _Args) ->
-    ok;
-
-handle_event(client_closed, [_When], _Config) ->
-    elli_stats_server:incr(client_closed),
-    ok;
-
-handle_event(client_timeout, [_When], _Config) ->
-    elli_stats_server:incr(client_timeout),
-    ok;
-
-handle_event(elli_startup, [], _Config) ->
+handle_event(elli_startup, [], Config) ->
     case whereis(elli_stats_server) of
         undefined ->
-            {ok, _Pid} = elli_stats_server:start_link(),
+            {ok, _Pid} = elli_stats_server:start_link(name(Config), self()),
             ok;
         Pid when is_pid(Pid) ->
             ok
-    end.
+    end;
+
+handle_event(Event, _Data, Config) when is_atom(Event) ->
+    elli_stats_server:incr(name(Config), Event),
+    ok;
+
+handle_event(_, _, _) ->
+    ok.
+
+
 
 
 %%
@@ -92,6 +81,9 @@ identity_fun(Config) ->
     proplists:get_value(identity_fun, Config, fun (_Req) ->
                                                       <<"undefined">>
                                               end).
+
+name(Config) ->
+    proplists:get_value(name, Config, elli_stats_server).
 
 valid_path(Path) ->
     case binary:match(Path, <<"..">>) of
@@ -111,10 +103,12 @@ start_demo() ->
                 case elli_request:path(Req) of
                     [<<"favicon.ico">>] -> <<"favicon">>;
                     [<<"hello">>] -> <<"hello">>;
+                    [<<"hello">>, <<"world">>] -> <<"hello/world">>;
                     _ -> <<"unknown">>
                 end
         end,
-    StatsConfig = [{docroot, "priv/docroot"},
+    StatsConfig = [{name, elli_demo_stats},
+                   {docroot, "priv/docroot"},
                    {identity_fun, IdentityFun}],
 
     Config = [

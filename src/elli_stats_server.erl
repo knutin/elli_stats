@@ -2,41 +2,41 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, incr/1, request/2, add_subscriber/1]).
+-export([start_link/2, incr/2, request/3, add_subscriber/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
 
--record(state, {subscribers = []}).
+-record(state, {subscribers = [], elli_controller}).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
 
 
-start_link() ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+start_link(Name, ElliController) ->
+    gen_server:start_link({local, Name}, ?MODULE, [ElliController], []).
 
-incr(Key) ->
-    incr(Key, 1).
-incr(Key, Amount) ->
-    gen_server:cast(?MODULE, {incr, Key, Amount}).
+incr(Name, Key) ->
+    incr(Name, Key, 1).
+incr(Name, Key, Amount) ->
+    gen_server:cast(Name, {incr, Key, Amount}).
 
-request(Id, Timings) ->
-    gen_server:cast(?MODULE, {request, Id, Timings}).
+request(Name, Id, Timings) ->
+    gen_server:cast(Name, {request, Id, Timings}).
 
-add_subscriber(Ref) ->
-    gen_server:call(?MODULE, {add_subscriber, Ref}).
+add_subscriber(Name, Ref) ->
+    gen_server:call(Name, {add_subscriber, Ref}).
 
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
 
-init([]) ->
+init([ElliController]) ->
     erlang:send_after(1000, self(), push),
-    {ok, #state{}}.
+    {ok, #state{elli_controller = ElliController}}.
 
 handle_call({add_subscriber, Ref}, _From, #state{subscribers = Sub} = State) ->
     {reply, ok, State#state{subscribers = [Ref | Sub]}};
@@ -58,20 +58,9 @@ handle_cast({incr, Key, Amount}, State) ->
 
 
 handle_info(push, #state{subscribers = Subscribers} = State) ->
-    Stats = get_stats(),
-    Formatted = iolist_to_binary(["data: ", jiffy:encode(Stats), "\n\n"]),
-
-    NewSubscribers = lists:flatmap(
-                       fun (Sub) ->
-                               case elli_request:send_chunk(Sub, Formatted) of
-                                   ok ->
-                                       [Sub];
-                                   {error, closed} ->
-                                       [];
-                                   {error, timeout} ->
-                                       []
-                               end
-                       end, Subscribers),
+    Stats = get_stats(State#state.elli_controller),
+    Chunk = iolist_to_binary(["data: ", jiffy:encode(Stats), "\n\n"]),
+    NewSubscribers = notify_subscribers(Subscribers, Chunk),
 
     erlang:send_after(1000, self(), push),
     {noreply, State#state{subscribers = NewSubscribers}};
@@ -90,6 +79,19 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 
 
+notify_subscribers(Subscribers, Chunk) ->
+    lists:flatmap(
+      fun (Sub) ->
+              case elli_request:send_chunk(Sub, Chunk) of
+                  ok ->
+                      [Sub];
+                  {error, closed} ->
+                      [];
+                  {error, timeout} ->
+                      []
+              end
+      end, Subscribers).
+
 incr_counter(Key, Amount) ->
     case get({counter, Key}) of
         undefined ->
@@ -107,7 +109,7 @@ record_timing(Key, Time) ->
     end.
 
 
-get_stats() ->
+get_stats(Controller) ->
     Timings = lists:filter(fun ({{timing, _} = Key, _}) ->
                                    erase(Key),
                                    true;
@@ -134,4 +136,10 @@ get_stats() ->
                          {p999, P999}
                         ]}}
           end, Timings),
-    {[{timings, {TimeStats}}]}.
+
+    OpenReqs = case catch elli:get_open_reqs(Controller, 100) of
+                   {ok, N} -> N;
+                   {'EXIT', _} -> 0
+               end,
+
+    {[{timings, {TimeStats}}, {open_reqs, OpenReqs}]}.
