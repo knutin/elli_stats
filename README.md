@@ -16,7 +16,7 @@ Feedback and pull requests welcome!
 
 This is an example of `elli_stats` in action:
 
-[Example](doc/elli_stats_example.png)
+[Example](https://github.com/knutin/elli_stats/blob/master/doc/elli_stats_example.png)
 
 
 ## Demo
