@@ -107,7 +107,7 @@ start_demo() ->
                     _ -> <<"unknown">>
                 end
         end,
-    StatsConfig = [{name, elli_demo_stats},
+    StatsConfig = [{name, elli_stats_demo},
                    {docroot, "priv/docroot"},
                    {identity_fun, IdentityFun}],
 
