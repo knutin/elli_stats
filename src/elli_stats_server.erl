@@ -104,14 +104,17 @@ record_timing(Name, Key, Time) ->
 
 
 
-iterate_ets(Name) ->
-    iterate_ets(ets:first(Name), Name, []).
+iterate_ets(Now, Name) ->
+    iterate_ets(Now, ets:first(Name), Name, []).
 
-iterate_ets('$end_of_table', _Name, Acc) -> Acc;
-iterate_ets(Key, Name, Acc) ->
+iterate_ets(_Now, '$end_of_table', _Name, Acc) -> Acc;
+iterate_ets(Now, Key, Name, Acc) when Now >= Key ->
     [Value] = ets:lookup(Name, Key),
     true = ets:delete(Name, Key),
-    iterate_ets(ets:next(Name, Key), Name, [Value | Acc]).
+    iterate_ets(Now, ets:next(Name, Key), Name, [Value | Acc]);
+iterate_ets(_Now, _Key, _Name, Acc) ->
+    Acc.
+
 
 
 get_stats(Name, _Controller) ->
@@ -122,7 +125,7 @@ get_stats(Name, _Controller) ->
                                       false -> []
                                   end,
                         lists:keystore(Key, 1, Acc, {Key, [Time | Timings]})
-                end, [], iterate_ets(Name)),
+                end, [], iterate_ets(os:timestamp(), Name)),
 
     TimeStats =
         lists:map(
