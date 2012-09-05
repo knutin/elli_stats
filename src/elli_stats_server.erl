@@ -57,11 +57,11 @@ handle_cast({incr, Key, Amount}, State) ->
 
 
 handle_info(push, #state{subscribers = Subscribers} = State) ->
+    erlang:send_after(1000, self(), push),
+
     Stats = get_stats(State#state.name, State#state.elli_controller),
     Chunk = iolist_to_binary(["data: ", jiffy:encode(Stats), "\n\n"]),
     NewSubscribers = notify_subscribers(Subscribers, Chunk),
-
-    erlang:send_after(1000, self(), push),
     {noreply, State#state{subscribers = NewSubscribers}};
 
 handle_info(_Info, State) ->
